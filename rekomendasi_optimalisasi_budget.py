@@ -45,6 +45,206 @@ def simpan_data_csv(file_path, data, fieldnames):
         writer.writeheader()
         writer.writerows(data)
 
+# ==================== ALGORITMA SELECTION SORT ====================
+
+def selection_sort_rating_desc(data_list, key_func):
+    """Selection sort untuk mengurutkan berdasarkan rating tertinggi"""
+    n = len(data_list)
+    for i in range(n):
+        max_idx = i
+        for j in range(i + 1, n):
+            if key_func(data_list[j]) > key_func(data_list[max_idx]):
+                max_idx = j
+        data_list[i], data_list[max_idx] = data_list[max_idx], data_list[i]
+    return data_list
+
+def selection_sort_total_rating_desc(rekomendasi_list):
+    """Selection sort untuk mengurutkan rekomendasi berdasarkan total rating tertinggi"""
+    n = len(rekomendasi_list)
+    for i in range(n):
+        max_idx = i
+        for j in range(i + 1, n):
+            if rekomendasi_list[j]['total_rating'] > rekomendasi_list[max_idx]['total_rating']:
+                max_idx = j
+        rekomendasi_list[i], rekomendasi_list[max_idx] = rekomendasi_list[max_idx], rekomendasi_list[i]
+    return rekomendasi_list
+
+# ==================== FUNGSI RATING ====================
+
+def simpan_rating(username, kota, tipe_tempat, nama_tempat, rating_baru):
+    """Simpan rating yang diberikan customer"""
+    now = datetime.now()
+    
+    # Cek apakah file rating sudah ada
+    file_exists = os.path.exists('rating_history.csv')
+    
+    with open('rating_history.csv', 'a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(['username', 'tanggal', 'waktu', 'kota', 'tipe_tempat', 'nama_tempat', 'rating_diberikan'])
+        
+        writer.writerow([
+            username,
+            now.strftime('%Y-%m-%d'),
+            now.strftime('%H:%M'),
+            kota,
+            tipe_tempat,
+            nama_tempat,
+            rating_baru
+        ])
+
+def update_rating_tempat(file_path, nama_tempat, rating_baru):
+    """Update rating di file CSV dengan rata-rata rating lama dan baru"""
+    data = load_data_csv(file_path)
+    
+    for item in data:
+        if item['nama'].lower() == nama_tempat.lower():
+            # Hitung rating baru = (rating lama + rating baru) / 2
+            rating_lama = float(item['rating'])
+            rating_terbaru = (rating_lama + rating_baru) / 2
+            item['rating'] = round(rating_terbaru, 1)  # Bulatkan ke 1 desimal
+            
+            # Simpan kembali ke file
+            fieldnames = list(data[0].keys()) if data else ['nama', 'biaya', 'rating']
+            simpan_data_csv(file_path, data, fieldnames)
+            return rating_terbaru
+    
+    return None
+
+def beri_rating():
+    """Fungsi untuk customer memberikan rating"""
+    print('==================================================')
+    print('              BERIKAN RATING TEMPAT               ')
+    print('==================================================')
+    print('Kota yang tersedia: Ubud, Gianyar, Buleleng, Jimbaran, Denpasar, Uluwatu, Seminyak, Canggu, Nusadua, Tabanan')
+    
+    kota = input("Masukkan kota: ").strip()
+    
+    print("\nPilih tipe tempat:")
+    print("1. Hotel")
+    print("2. Wisata")
+    
+    while True:
+        pilih_tipe = input("Pilih (1/2): ")
+        if pilih_tipe == '1':
+            tipe_tempat = 'hotel'
+            file_path = f"hotel_{kota.lower()}.csv"
+            break
+        elif pilih_tipe == '2':
+            tipe_tempat = 'wisata'
+            file_path = f"wisata_{kota.lower()}.csv"
+            break
+        else:
+            print("Pilihan tidak valid.")
+    
+    # Load data tempat
+    data_tempat = load_data_csv(file_path)
+    
+    if not data_tempat:
+        print(f"Data {tipe_tempat} untuk kota '{kota}' tidak ditemukan.")
+        return
+    
+    print(f"\nDaftar {tipe_tempat.title()} di {kota.title()}:")
+    for i, tempat in enumerate(data_tempat, 1):
+        print(f"{i}. {tempat['nama']} - Rating saat ini: {tempat['rating']}/5")
+    
+    while True:
+        try:
+            pilih_tempat = int(input(f"\nPilih {tipe_tempat} (1-{len(data_tempat)}): ")) - 1
+            if 0 <= pilih_tempat < len(data_tempat):
+                break
+            else:
+                print("Nomor tidak valid.")
+        except ValueError:
+            print("Input harus berupa angka.")
+    
+    tempat_terpilih = data_tempat[pilih_tempat]
+    
+    print(f"\nAnda akan memberikan rating untuk: {tempat_terpilih['nama']}")
+    print(f"Rating saat ini: {tempat_terpilih['rating']}/5")
+    
+    while True:
+        try:
+            rating_baru = float(input("Berikan rating Anda (1.0-5.0): "))
+            if 1.0 <= rating_baru <= 5.0:
+                break
+            else:
+                print("Rating harus antara 1.0-5.0")
+        except ValueError:
+            print("Rating harus berupa angka (contoh: 4.5)")
+    
+    # Konfirmasi
+    konfirmasi = input(f"Yakin memberikan rating {rating_baru} untuk {tempat_terpilih['nama']}? (y/t): ").lower()
+    
+    if konfirmasi == 'y':
+        # Update rating di file CSV
+        rating_terbaru = update_rating_tempat(file_path, tempat_terpilih['nama'], rating_baru)
+        
+        if rating_terbaru:
+            # Simpan ke history rating
+            simpan_rating(usernamelogin, kota, tipe_tempat, tempat_terpilih['nama'], rating_baru)
+            
+            print(f"\nRating berhasil diberikan!")
+            print(f"Rating lama: {tempat_terpilih['rating']}")
+            print(f"Rating yang Anda berikan: {rating_baru}")
+            print(f"Rating terbaru: {rating_terbaru:.1f}")
+        else:
+            print("Gagal mengupdate rating.")
+    else:
+        print("Rating dibatalkan.")
+    
+    input('\nTekan Enter untuk kembali...')
+
+def lihat_history_rating():
+    """Admin melihat siapa saja yang sudah memberikan rating"""
+    print('==================================================')
+    print('              HISTORY RATING CUSTOMER             ')
+    print('==================================================')
+    
+    try:
+        with open('rating_history.csv', newline='', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            history_data = list(reader)
+            
+            if not history_data:
+                print('Belum ada customer yang memberikan rating.')
+                return
+            
+            # Group by kota untuk tampilan yang lebih rapi
+            kota_group = {}
+            for row in history_data:
+                kota = row['kota']
+                if kota not in kota_group:
+                    kota_group[kota] = []
+                kota_group[kota].append(row)
+            
+            print(f"Total rating yang diberikan: {len(history_data)}")
+            print("="*80)
+            
+            for kota, ratings in kota_group.items():
+                print(f"\n🏙️  KOTA: {kota.upper()}")
+                print("-" * 60)
+                
+                for i, rating in enumerate(ratings, 1):
+                    print(f"{i}. Customer: {rating['username']}")
+                    print(f"   Tanggal: {rating['tanggal']} {rating['waktu']}")
+                    print(f"   Tempat: {rating['nama_tempat']} ({rating['tipe_tempat'].title()})")
+                    print(f"   Rating diberikan: {rating['rating_diberikan']}/5")
+                    print("-" * 40)
+            
+            # Statistik
+            print(f"\n📊 STATISTIK:")
+            unique_customers = set(row['username'] for row in history_data)
+            print(f"Jumlah customer yang memberikan rating: {len(unique_customers)}")
+            
+            avg_rating = sum(float(row['rating_diberikan']) for row in history_data) / len(history_data)
+            print(f"Rata-rata rating yang diberikan: {avg_rating:.1f}/5")
+            
+    except FileNotFoundError:
+        print('Belum ada customer yang memberikan rating.')
+    except Exception as e:
+        print(f'Terjadi kesalahan saat membaca data rating: {e}')
+
 # ==================== ALGORITMA KNAPSACK ====================
 
 def knapsack_01(wisata_list, max_budget):
@@ -96,8 +296,8 @@ def rekomendasi_paket(kota, budget):
 
     rekomendasi = []
     
-    # Sort hotel berdasarkan rating tertinggi
-    hotel_list_sorted = sorted(hotel_list, key=lambda x: x['rating'], reverse=True)
+    # Sort hotel berdasarkan rating tertinggi menggunakan selection sort
+    hotel_list_sorted = selection_sort_rating_desc(hotel_list.copy(), lambda x: x['rating'])
     
     for hotel in hotel_list_sorted:
         sisa_budget = budget - hotel['biaya']
@@ -118,9 +318,9 @@ def rekomendasi_paket(kota, budget):
                 'total_rating': total_rating
             })
 
-    # Sort berdasarkan total rating tertinggi
-    rekomendasi.sort(key=lambda x: x['total_rating'], reverse=True)
-    return rekomendasi[:5]  # Ambil 5 rekomendasi terbaik
+    # Sort berdasarkan total rating tertinggi menggunakan selection sort
+    rekomendasi_sorted = selection_sort_total_rating_desc(rekomendasi)
+    return rekomendasi_sorted[:5]  # Ambil 5 rekomendasi terbaik
 
 def simpan_riwayat(username, kota, paket):
     """Simpan riwayat paket yang dipilih"""
@@ -352,9 +552,12 @@ def menu_pengguna():
         print('Silahkan pilih menu yang anda butuhkan:')
         print("1. Cari Rekomendasi Paket Wisata")
         print("2. Lihat Riwayat Paket")
-        print("3. Logout")
+        print("3. Berikan Rating Hotel/Wisata")
+        print('4. Lihat hotel yang tersedia')
+        print('5. LIhat Destinasi tempat wisata')
+        print("6. Logout")
         
-        pilihan = input("Pilih menu (1/2/3): ")
+        pilihan = input("Pilih menu (1/2/3/4): ")
 
         if pilihan == '1':
             cari_rekomendasi()
@@ -362,6 +565,22 @@ def menu_pengguna():
             lihat_riwayat(usernamelogin)
             input('\nTekan Enter untuk kembali ke menu...')
         elif pilihan == '3':
+            beri_rating()
+        elif pilihan == '4':
+            kota = pilih_kota()
+            if kota:
+                file_path = f"hotel_{kota}.csv"
+                tipe_data = 'HOTEL'
+                lihat_data(file_path, tipe_data)
+                input('Tekan Enter untuk melanjutkan...')
+        elif pilihan == '5':
+            kota = pilih_kota()
+            if kota:
+                file_path = f"wisata_{kota}.csv"
+                tipe_data = 'WISATA'
+                lihat_data(file_path, tipe_data)
+                input('Tekan Enter untuk melanjutkan...')
+        elif pilihan == '6':
             print('Logout berhasil.')
             input('Tekan Enter untuk kembali ke menu utama.')
             tampilanawal()
@@ -375,7 +594,7 @@ def cari_rekomendasi():
     print('==================================================')
     print('          CARI REKOMENDASI PAKET WISATA           ')
     print('==================================================')
-    print('Kota yatersedia: Ubud, Gianyar, Buleleng, Jimbaran, Denpasar, Uluwatu, Seminyak, Canggu, Nusadua, Tabanan')
+    print('Kota yang tersedia: Ubud, Gianyar, Buleleng, Jimbaran, Denpasar, Uluwatu, Seminyak, Canggu, Nusadua, Tabanan')
     kota = input("Masukkan kota tujuan: ").strip()
     
     try:
@@ -643,8 +862,9 @@ def menu_admin():
         print('                   MENU ADMIN                     ')
         print('==================================================')
         print("1. Kelola Data Hotel")
-        print("2. Kelola Data Wisata")
-        print("3. Logout")
+        print("2. Kelola Data Wisata") 
+        print("3. Lihat History Rating Customer")  # Menu baru
+        print("4. Logout")
         
         pilihan = input("Pilih menu: ")
         
@@ -659,6 +879,9 @@ def menu_admin():
                 file_path = f"wisata_{kota}.csv"
                 kelola_data(file_path, ['nama', 'biaya', 'rating'], 'wisata')
         elif pilihan == '3':
+            lihat_history_rating()  # Panggil fungsi baru
+            input('\nTekan Enter untuk kembali ke menu...')
+        elif pilihan == '4':
             print('Logout berhasil.')
             input('Tekan Enter untuk kembali ke menu utama.')
             tampilanawal()
